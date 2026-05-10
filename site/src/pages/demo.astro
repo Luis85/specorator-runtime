@@ -1,0 +1,377 @@
+---
+import Layout from '../layouts/Layout.astro';
+const base = import.meta.env.BASE_URL;
+---
+
+<Layout
+  title="Hello World Demo — Specorator Runtime"
+  description="A static snapshot of a Hello World execution trace from Specorator Runtime v0.1.0."
+>
+  <style>
+    .page-header { padding: 2.5rem 0 2rem; border-bottom: 1px solid var(--color-border); margin-bottom: 2.5rem; }
+    .page-header h1 { font-size: clamp(1.4rem, 3.5vw, 1.9rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.75rem; }
+    .page-header .subtitle { color: var(--color-muted); font-size: 0.95rem; line-height: 1.7; max-width: 640px; }
+
+    .notice {
+      background: rgba(210,153,34,0.08);
+      border: 1px solid rgba(210,153,34,0.25);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      font-size: 0.825rem;
+      color: var(--color-yellow);
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    .notice strong { color: var(--color-yellow); }
+
+    section { margin-bottom: 2.75rem; }
+    h2 { font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 1rem; color: var(--color-text); }
+    h2 .prefix { color: var(--color-accent); font-weight: 400; font-size: 0.75rem; display: block; margin-bottom: 0.3rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .event {
+      display: grid;
+      grid-template-columns: 2.5rem 1fr;
+      gap: 0 1rem;
+      position: relative;
+    }
+    .event-line {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .event-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      border: 2px solid var(--color-bg);
+      outline: 1px solid var(--color-accent);
+      flex-shrink: 0;
+      margin-top: 0.35rem;
+    }
+    .event-connector {
+      flex: 1;
+      width: 1px;
+      background: var(--color-border);
+      min-height: 1rem;
+    }
+    .event-last .event-connector { display: none; }
+
+    .event-body {
+      padding-bottom: 1.25rem;
+    }
+    .event-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .event-seq {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--color-muted);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+    }
+    .event-type {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-accent);
+    }
+    .event-desc { font-size: 0.875rem; color: var(--color-muted); margin-bottom: 0.65rem; line-height: 1.6; }
+    .event-payload {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 0.65rem 0.9rem;
+      font-family: var(--font-mono);
+      font-size: 0.77rem;
+      line-height: 1.65;
+      color: var(--color-muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .event-payload .key { color: #e6edf3; }
+    .event-payload .val-str { color: #a5d6ff; }
+    .event-payload .val-num { color: #ffa657; }
+
+    .artifact-box {
+      background: var(--color-surface);
+      border: 1px solid var(--color-green);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+    }
+    .artifact-box .artifact-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-green);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 0.65rem;
+    }
+    .artifact-box pre {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--color-muted);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .session-snapshot {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.75;
+      color: var(--color-muted);
+      white-space: pre;
+    }
+    .session-snapshot .key { color: var(--color-text); }
+    .session-snapshot .val-ok { color: var(--color-green); }
+    .session-snapshot .val-str { color: #a5d6ff; }
+    .session-snapshot .val-num { color: #ffa657; }
+
+    .dot-green { background: var(--color-green); outline-color: var(--color-green); }
+    .type-green { color: var(--color-green); }
+
+    .back-link { font-size: 0.875rem; margin-top: 1rem; display: inline-block; }
+  </style>
+
+  <div class="page-header">
+    <h1>Hello World &mdash; Execution Trace</h1>
+    <p class="subtitle">
+      A static snapshot of a first end-to-end run of Specorator Runtime.
+      This page shows the ordered event log produced by <code>examples/hello-world/index.ts</code>
+      from session start to clean stop &mdash; rendered as a visual timeline.
+    </p>
+  </div>
+
+  <div class="notice">
+    <strong>Preliminary snapshot.</strong> This is an illustrative trace based on the v0.1.0 Hello World specification.
+    Event names, payload shapes, and the artifact content will be verified and updated against the actual output of
+    <code>examples/hello-world/index.ts</code> before the Hello World milestone closes (issue&nbsp;#8).
+    Authoritative event names are defined in issues #15 and #21.
+  </div>
+
+  <section>
+    <h2><span class="prefix">Event log</span>Session lifecycle</h2>
+    <div class="timeline">
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#1</span>
+            <span class="event-type">session.started</span>
+          </div>
+          <p class="event-desc">A new runtime session was created and the workflow package loaded into the agent habitat.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_01HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"session.started"</span>
+<span class="key">seq</span>:     <span class="val-num">1</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">sessionId</span>:  <span class="val-str">"ses_01HWSF3K..."</span>
+  <span class="key">workflowId</span>: <span class="val-str">"hello-world"</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#2</span>
+            <span class="event-type">agent.spawned</span>
+          </div>
+          <p class="event-desc">An agentonomous agent was instantiated as an ECS entity in the session with provisioned capabilities.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_02HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"agent.spawned"</span>
+<span class="key">seq</span>:     <span class="val-num">2</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">parentId</span>: <span class="val-str">"evt_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">agentId</span>:   <span class="val-str">"agt_01HWSF3K..."</span>
+  <span class="key">agentType</span>: <span class="val-str">"hello-world-agent"</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#3</span>
+            <span class="event-type">task.created</span>
+          </div>
+          <p class="event-desc">A task was registered in the session task graph with its dependencies declared.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_03HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"task.created"</span>
+<span class="key">seq</span>:     <span class="val-num">3</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">taskId</span>: <span class="val-str">"tsk_01HWSF3K..."</span>
+  <span class="key">state</span>:  <span class="val-str">"created"</span>
+  <span class="key">label</span>:  <span class="val-str">"say-hello"</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#4</span>
+            <span class="event-type">task.ready</span>
+          </div>
+          <p class="event-desc">Task prerequisites were met; the runtime advanced the task to ready so the agent can claim it.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_04HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"task.ready"</span>
+<span class="key">seq</span>:     <span class="val-num">4</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">taskId</span>: <span class="val-str">"tsk_01HWSF3K..."</span>
+  <span class="key">state</span>:  <span class="val-str">"ready"</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#5</span>
+            <span class="event-type">command.dispatched</span>
+          </div>
+          <p class="event-desc">A command was dispatched to the agent after passing the Permission Guard. The task transitioned to running.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_05HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"command.dispatched"</span>
+<span class="key">seq</span>:     <span class="val-num">5</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">taskId</span>:  <span class="val-str">"tsk_01HWSF3K..."</span>
+  <span class="key">agentId</span>: <span class="val-str">"agt_01HWSF3K..."</span>
+  <span class="key">command</span>: <span class="val-str">"/hello:greet"</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#6</span>
+            <span class="event-type">artifact.created</span>
+          </div>
+          <p class="event-desc">The agent produced a typed artifact and registered it with the session.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_06HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"artifact.created"</span>
+<span class="key">seq</span>:     <span class="val-num">6</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">artifactId</span>: <span class="val-str">"art_01HWSF3K..."</span>
+  <span class="key">taskId</span>:     <span class="val-str">"tsk_01HWSF3K..."</span>
+  <span class="key">kind</span>:       <span class="val-str">"text"</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-line">
+          <div class="event-dot"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#7</span>
+            <span class="event-type">task.completed</span>
+          </div>
+          <p class="event-desc">The task transitioned to <code>completed</code> state. The artifact was confirmed and the session recorded the outcome.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_07HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"task.completed"</span>
+<span class="key">seq</span>:     <span class="val-num">7</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">taskId</span>:     <span class="val-str">"tsk_01HWSF3K..."</span>
+  <span class="key">state</span>:      <span class="val-str">"completed"</span>
+  <span class="key">artifactId</span>: <span class="val-str">"art_01HWSF3K..."</span>
+&#125;</div>
+        </div>
+      </div>
+
+      <div class="event event-last">
+        <div class="event-line">
+          <div class="event-dot dot-green"></div>
+          <div class="event-connector"></div>
+        </div>
+        <div class="event-body">
+          <div class="event-header">
+            <span class="event-seq">#8</span>
+            <span class="event-type type-green">session.stopped</span>
+          </div>
+          <p class="event-desc">The session was cleanly stopped. All agents were torn down, the lifecycle concluded, and the final event was emitted.</p>
+          <div class="event-payload"><span class="key">eventId</span>: <span class="val-str">"evt_08HWSF3K..."</span>
+<span class="key">type</span>:    <span class="val-str">"session.stopped"</span>
+<span class="key">seq</span>:     <span class="val-num">8</span>
+<span class="key">traceId</span>: <span class="val-str">"trc_01HWSF3K..."</span>
+<span class="key">payload</span>: &#123;
+  <span class="key">sessionId</span>: <span class="val-str">"ses_01HWSF3K..."</span>
+  <span class="key">state</span>:     <span class="val-str">"stopped"</span>
+&#125;</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="prefix">Output</span>Produced artifact</h2>
+    <div class="artifact-box">
+      <div class="artifact-label">artifact &mdash; art_01HWSF3K... &middot; kind: text</div>
+      <pre>Hello from Specorator Runtime v0.1.0.
+
+Session ses_01HWSF3K... started successfully.
+Agent agt_01HWSF3K... (hello-world-agent) spawned and ready.
+Task say-hello completed. Artifact produced.
+
+The runtime is alive.</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="prefix">Final state</span>Session snapshot after stop</h2>
+    <div class="session-snapshot"><span class="key">id</span>:            <span class="val-str">"ses_01HWSF3K..."</span>
+<span class="key">state</span>:         <span class="val-ok">"stopped"</span>
+<span class="key">workflowId</span>:    <span class="val-str">"hello-world"</span>
+<span class="key">taskCount</span>:     <span class="val-num">1</span>
+<span class="key">artifactCount</span>: <span class="val-num">1</span>
+<span class="key">eventCount</span>:    <span class="val-num">8</span></div>
+  </section>
+
+  <a class="back-link" href={base}>&larr; Back to product page</a>
+</Layout>
