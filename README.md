@@ -1,30 +1,54 @@
 # specorator-runtime
 
-The execution layer for the Specorator ecosystem — runs agentic workflows, orchestrates agents, and exposes session state and events to the rest of the system.
+The execution layer for the Specorator ecosystem — provides an agent habitat, loads typed workflow packages, and exposes a small request/response API that Specorator uses to start sessions, run commands, submit tasks, and stream events.
 
-[![Phase 1 — Core Skeleton](https://img.shields.io/badge/phase-1%20core%20skeleton-blue)](https://github.com/Luis85/specorator-runtime/issues/8)
+[![Phase 1 — Architecture & Design](https://img.shields.io/badge/phase-1%20architecture%20%26%20design-blue)](https://github.com/Luis85/specorator-runtime/issues/14)
 
 ---
 
 ## Where it fits
 
 ```
-Specorator UI  ──►  specorator-runtime  ◄──  agentic-workflow (definitions)
-                           │
-                           └──────────────◄──  agentonomous (agents)
+┌─────────────────────────────────────────────────────────────────┐
+│  agentic-workflow — workflow package source                      │
+│  Agent/skill/command definitions, TS scripts, templates, docs   │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ assembled into WorkflowPackage
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  specorator-runtime  (this package)                             │
+│  Agent habitat · capability provider · event bus                │
+│  Public API: startSession / stopSession / getSession            │
+│              submitTask / runCommand / runScript                 │
+│              spawnAgent / stopAgent / bus.subscribe             │
+│  Orchestrator engine (SAO): automated agent dispatch            │
+└──────┬──────────────────────────────────────────────────────────┘
+       │  submits tasks/commands; subscribes to events
+       ▼
+┌──────────────────────────┐   ┌────────────────────────────────┐
+│  Specorator              │   │  agentonomous                  │
+│  Obsidian plugin         │   │  Autonomous agent library      │
+│  Cockpit UI · vault I/O  │   │  Lives inside the runtime      │
+│  HITL · WorkflowPackage  │   │  as ECS entities               │
+│  assembly                │   │  instantiated from definitions │
+└──────────────────────────┘   └────────────────────────────────┘
 ```
 
-The runtime sits between workflow definitions and agent implementations. It is the piece that makes the system execute.
+The runtime sits between workflow definitions and UI/agent consumers. It exposes a small, stable surface so consumers never see internal ECS, definition-parsing, permission enforcement, or orchestration complexity.
 
 ---
 
 ## Core concepts
 
-**Session** — one execution instance of a workflow. Contains the workflow reference, execution state, task graph, agent interactions, produced artifacts, and the full event log. Query it at any point during or after a run.
+**Session** — one isolated execution context for a workflow package. Created via `startSession(workflowPackage, capabilities)`. Query its state at any point via `getSession(id)`.
 
-**Event bus** — the coordination spine. Every lifecycle change emits a typed event (`workflow.started`, `task.ready`, `agent.invoked`, `artifact.created`, …). Components subscribe; the runtime guarantees event ordering within a session.
+**Event bus** — the coordination spine. Every lifecycle change emits a typed `RuntimeEvent` with a monotonic `seq`, `traceId`, and `parentId`. Subscribe via `bus.subscribe`. Events are ordered and trace-correlated across the three buses (plugin, runtime, agent-internal).
 
-**Task lifecycle** — each task in a workflow progresses through states: `created → ready → running → completed | failed`. The runtime resolves dependencies and advances tasks when their prerequisites are met.
+**Task lifecycle** — tasks progress through `created → ready → running → completed | failed`. The runtime resolves dependencies and advances tasks when prerequisites are met.
+
+**Agent habitat** — the runtime hosts `agentonomous` agents as ECS entities. It provisions capabilities (LLM, vault-read, workflow-reference), enforces per-agent permissions declared in the workflow package, and ticks the agent loop each simulation step.
+
+**Orchestrator engine (SAO)** — the automated dispatch layer built into the runtime. Polls the vault for eligible features, dispatches Claude CLI agent processes into isolated git worktrees, evaluates artifact quality via a sensor hierarchy, and advances workflow stages upon confirmed success. Configurable via the `agentOrchestrator` settings namespace with human review gates.
 
 ---
 
@@ -41,17 +65,23 @@ The runtime sits between workflow definitions and agent implementations. It is t
 
 | Phase | Focus | Status |
 |---|---|---|
-| Phase 1 — Core Skeleton | Runtime kernel, event bus, session model | In progress → v0.1.0 |
-| Phase 2 — Execution | Full workflow interpreter, agent executor | Planned |
-| Phase 3 — Observability | Runtime API, logging, state store | Planned |
-| Phase 4 — Integration | Connect to Specorator UI | Planned |
+| Phase 0 — Foundation | Product identity, knowledge architecture, design workshops, ADRs, solution proposal | In progress |
+| Phase 1 — Architecture & Design | Runtime kernel, data model, orchestrator design, all design decisions | In progress |
+| Phase 2 — Engineering Scaffold | Tooling, CI, test infrastructure, architecture fitness, entropy management | Planned |
+| Hello World (v0.1.0) | First end-to-end runtime proof | Planned |
+| Phase 3+ | Replay, sandboxing, MCP transport, semantic indexing | Deferred |
+
+See the full roadmap in [issue #37](https://github.com/Luis85/specorator-runtime/issues/37).
 
 ---
 
 ## Related
 
-- [PRD — Specorator Runtime](https://github.com/Luis85/specorator-runtime/issues/1)
+- [ROADMAP — issue #37](https://github.com/Luis85/specorator-runtime/issues/37) — full phase-by-phase delivery plan
+- [PRD — issue #1](https://github.com/Luis85/specorator-runtime/issues/1)
 - [VISION.md](./VISION.md) — the decision filter for this project
+- [Architecture proposal — issue #14](https://github.com/Luis85/specorator-runtime/issues/14)
+- [Orchestrator engine — issue #43](https://github.com/Luis85/specorator-runtime/issues/43)
 - [`agentic-workflow`](https://github.com/Luis85/agentic-workflow) — workflow definitions consumed by the runtime
 - [`agentonomous`](https://github.com/Luis85/agentonomous) — agent implementations invoked by the runtime
-- [Specorator](https://github.com/Luis85/specorator) — the UI that subscribes to runtime events
+- [Specorator](https://github.com/Luis85/specorator) — the Obsidian plugin that drives the runtime
